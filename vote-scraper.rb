@@ -1,6 +1,5 @@
 require 'mechanize'
 require 'net/http'
-require 'csv'
 
 agent = Mechanize.new
 
