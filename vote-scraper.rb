@@ -2,14 +2,19 @@
 require 'mechanize'
 # net/http is used to post form data
 require 'net/http'
+# use awesome_print to make things look nice ap instead of print
 require "awesome_print"
+#helps us parse csvs
 require "csv"
-
+# for debugging
 require "pry"
+#for persisting
 require 'data_mapper'
 
+#create our DB
 DataMapper.setup( :default, "sqlite3:database.sqlite3" )
 
+# create voterecords table
 class VoteRecord
   include DataMapper::Resource
 
@@ -19,6 +24,8 @@ class VoteRecord
   property :csv_raw, 				Text
 end
 
+#create parsedcsvs table linked to 
+# vote record by vote_record_id
 class ParsedCSV
 	include DataMapper::Resource
 
@@ -38,68 +45,66 @@ end
 
 DataMapper.finalize
 DataMapper.auto_upgrade!
+# end datamapper setup
 
-def get_data
-	# create a agent to go get ids
-	agent = Mechanize.new
-	url = URI('http://app.toronto.ca/tmmis/getAdminReport.do')
-	report_function = '?function=prepareMemberVoteReport'
+# create a agent to go get ids
+agent = Mechanize.new
+# set url for agent
+url = URI('http://app.toronto.ca/tmmis/getAdminReport.do')
+report_function = '?function=prepareMemberVoteReport'
 
-	# send the agent to the page
-	page = agent.get(url + report_function)
-	#and grab the correct form
-	form = page.form('adminReportForm')
+# send the agent to the page
+page = agent.get(url + report_function)
+#and grab the correct form
+form = page.form('adminReportForm')
 
-	#add member names and ids to an array
-	members = []
-	member_field = form.field_with(:name => "memberId")
-	member_field.options.each { |member| members << [member.text, member.value] }
+#add member names and ids to an array
+members = []
+member_field = form.field_with(:name => "memberId")
+member_field.options.each { |member| members << [member.text, member.value] }
 
-	#delete the first one
-	members.delete(["---Select Member---", "0"])
+#delete the first one
+members.delete(["---Select Member---", "0"])
 
-	# create an empty hash for our results
-	result = {}
+# create an empty hash for our results
+result = {}
 
-	# go through each member in the array and add the vote data to the hash
-	results = members[0..4].map do |member|
-		name = member[0]
-		id = member[1]
-		params = { 
-			toDate: "",
-			termId: 6,
-			sortOrder: "",
-			sortBy: "",
-			page: 0,
-			memberId: id,
-			itemsPerPage: 50,
-			function: "getMemberVoteReport",
-			fromDate: "",
-			exportPublishReportId: 2,
-			download: "csv",
-			decisionBodyId: 0
-		}
-		# votes = Net::HTTP.post_form(url, params).body
-		# result[id.to_sym] = [name, votes]
-		# {
-		# 	councillor_id: id,
-		# 	name: name,
-		# 	csv: Net::HTTP.post_form(url, params).body
-		# }
-		v = VoteRecord.create!({
-			name: name,
-			councillor_id: id,
-			csv_raw: Net::HTTP.post_form(url, params).body
-		})
+# go through each member in the array and add the vote data to the hash
+# members.each.map do |member| # use this to get all the data
+members[0..4].map do |member| # use this for testing. no point in asking for everything
+	name = member[0]
+	id = member[1]
+	# set the params for our POST
+	params = { 
+		toDate: "",
+		termId: 6,
+		sortOrder: "",
+		sortBy: "",
+		page: 0,
+		memberId: id,
+		itemsPerPage: 50,
+		function: "getMemberVoteReport",
+		fromDate: "",
+		exportPublishReportId: 2,
+		download: "csv",
+		decisionBodyId: 0
+	}
 
-		persist_csv(v.csv_raw, v.id)
-	end
+	# POST our params and put the result (csv) into the DB
+	v = VoteRecord.create!({
+		name: name,
+		councillor_id: id,
+		csv_raw: Net::HTTP.post_form(url, params).body
+	})
+
+	# parses the csv into a table linked to voterecords
+	persist_csv(v.csv_raw, v.id)
 end
 
-# raw_data = VoteRecord.all.first.csv_raw
-
 def persist_csv(csv_raw, vote_record_id)
+	# parses the csv. scrub cleans up non utf-8 chars
 	parsed = CSV.parse(csv_raw.scrub, headers: true)
+	# adds data in each row to db table
 	parsed.each do |row|
 		entries = row.to_h.values
 		ParsedCSV.create!({
@@ -116,8 +121,6 @@ def persist_csv(csv_raw, vote_record_id)
 	end
 end
 
-binding.pry
+# binding.pry
 
-puts ""
-# ap result
-# do something cool with the data now
+# puts ""
