@@ -1,4 +1,6 @@
+require "sqlite3"
 require 'data_mapper'
+require "dm-sqlite-adapter"
 
 DataMapper.setup( :default, "sqlite3:database.sqlite3" )
 

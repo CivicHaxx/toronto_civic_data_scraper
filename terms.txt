@@ -1,0 +1,44 @@
+# 2014-2018
+function:prepareMemberVoteReport
+download:N
+exportPublishReportId:2
+termId:6
+memberId:0
+fromDate:
+toDate:
+
+# 2010-2014
+function:prepareMemberVoteReport
+download:N
+exportPublishReportId:2
+termId:4
+memberId:0
+fromDate:
+toDate:
+Response Headersview source
+
+# 2006-2010
+function:prepareMemberVoteReport
+download:N
+exportPublishReportId:2
+termId:3
+memberId:0
+fromDate:
+toDate:
+
+
+
+# download one member
+function:getMemberVoteReport
+download:csv
+page:0
+itemsPerPage:50
+sortBy:
+sortOrder:
+exportPublishReportId:2
+termId:6
+memberId:2
+decisionBodyId:0
+fromDate:
+toDate:
+Response Headersview source
