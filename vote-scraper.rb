@@ -1,12 +1,23 @@
-require_relative './db_setup.rb'
-
-require 'net/http'
+# encoding: utf-8
+require "net/http"
 require "awesome_print"
 require "csv"
 require "pry"
 require "nokogiri"
 require "open-uri"
 require "active_support/all"
+require "active_record"
+
+require_relative "./db_setup.rb"
+require_relative "./db/migrations/001_create_vote_records_table.rb"
+
+configuration = YAML::load(IO.read("config/database.yml"))
+ActiveRecord::Base.establish_connection(configuration["development"])
+
+#CreateVoteRecordsTable.migrate(:change)
+
+class VoteRecord < ActiveRecord::Base
+end
 
 def run
   base = URI("http://app.toronto.ca/tmmis/getAdminReport.do")
@@ -26,7 +37,7 @@ def run
                       name:  x.text
                     }
                   end
-    results = members[1..-1].each do |member|
+    members[1..-1].each do |member|
       puts "Getting member vote report for #{member[:name]}"
       params = {
         toDate: "",
@@ -42,16 +53,21 @@ def run
         download: "csv",
         decisionBodyId: 0
       }
-      #CSV.foreach(file, :headers => true, :header_converters => lambda { |h| h.try(:downcase) })
       csv = Net::HTTP.post_form(base, params).body
-      eh = CSV.parse(csv.scrub,
+      CSV.parse(csv.scrub,
                 headers: true,
                 header_converters: lambda { |h| h.try(:parameterize).try(:underscore) })
          .map{|x| x.to_hash.symbolize_keys }
          .map{|x| x.merge(councillor_id: member[:id], councillor_name: member[:name]) }
-         .each{|x| binding.pry }
-         #.each{|x| VoteEvent.create!(x) }
-      #binding.pry
+         .each{|x|
+          begin
+             VoteRecord.create!(x)
+          rescue Encoding::UndefinedConversionError
+             puts "Try re encoding it"
+             record = Hash[x.map {|k, v| [k.to_sym, v.force_encoding('utf-8').scrub('')] }]
+             VoteRecord.create!(record)
+          end
+         }
     end
   end
 
