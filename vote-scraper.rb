@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "net/http"
 require "awesome_print"
+require "colored"
 require "csv"
 require "pry"
 require "nokogiri"
@@ -14,9 +15,12 @@ require_relative "./db/migrations/001_create_vote_records_table.rb"
 configuration = YAML::load(IO.read("config/database.yml"))
 ActiveRecord::Base.establish_connection(configuration["development"])
 
-#CreateVoteRecordsTable.migrate(:change)
 
 class VoteRecord < ActiveRecord::Base
+end
+
+def migrate
+  CreateVoteRecordsTable.migrate(:change)
 end
 
 def run
@@ -29,26 +33,15 @@ def run
 
   term_ids.each do |term_id|
     puts "Getting term #{term_id}"
+
     term_page = Nokogiri::HTML(open(term_url + term_id.to_s))
     members = term_page.css("select[name='memberId'] option")
                        .map{|x| { id: x.attr("value"), name: x.text } }
 
     members[1..-1].each do |member|
       puts "\nGetting member vote report for #{member[:name]}"
-      params = {
-        toDate: "",
-        termId: term_id,
-        sortOrder: "",
-        sortBy: "",
-        page: 0,
-        memberId: member[:id],
-        itemsPerPage: 50,
-        function: "getMemberVoteReport",
-        fromDate: "",
-        exportPublishReportId: 2,
-        download: "csv",
-        decisionBodyId: 0
-      }
+
+      params = report_download_params(term_id, member[:id])
       csv = Net::HTTP.post_form(base, params).body
       CSV.parse(csv.scrub,
                 headers: true,
@@ -58,16 +51,33 @@ def run
         .each do |x|
           begin
             VoteRecord.create!(x)
+            print "|".green
           rescue Encoding::UndefinedConversionError
-            puts "Try re encoding it"
             record = Hash[x.map {|k, v| [k.to_sym, v.force_encoding('utf-8').scrub('')] }]
             VoteRecord.create!(record)
+            print "|".red
           end
-          print "|"
         end 
     end
   end
 
+end
+
+def report_download_params(term_id, member_id)
+    {
+      toDate: "",
+      termId: term_id,
+      sortOrder: "",
+      sortBy: "",
+      page: 0,
+      memberId: member_id,
+      itemsPerPage: 50,
+      function: "getMemberVoteReport",
+      fromDate: "",
+      exportPublishReportId: 2,
+      download: "csv",
+      decisionBodyId: 0
+    }
 end
 
 # results.first.map{|x| [x[:date_time].to_time, x[:date_time]] }

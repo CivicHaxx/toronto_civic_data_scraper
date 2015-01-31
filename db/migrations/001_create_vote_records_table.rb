@@ -5,13 +5,13 @@ class CreateVoteRecordsTable < ActiveRecord::Migration
       t.string  :committee
       t.string  :date_time
       t.string  :agenda_item
-      t.text  :agenda_item_title 
+      t.text    :agenda_item_title 
       t.string  :motion_type
       t.string  :vote
       t.string  :result
       t.text    :vote_description
       t.integer :councillor_id
-      t.integer :councillor_name
+      t.string  :councillor_name
     end
     puts "Created Vote Records table"
   end
