@@ -31,14 +31,10 @@ def run
     puts "Getting term #{term_id}"
     term_page = Nokogiri::HTML(open(term_url + term_id.to_s))
     members = term_page.css("select[name='memberId'] option")
-                  .map do |x|
-                    {
-                      id:    x.attr("value"),
-                      name:  x.text
-                    }
-                  end
+                       .map{|x| { id: x.attr("value"), name: x.text } }
+
     members[1..-1].each do |member|
-      puts "Getting member vote report for #{member[:name]}"
+      puts "\nGetting member vote report for #{member[:name]}"
       params = {
         toDate: "",
         termId: term_id,
@@ -57,17 +53,18 @@ def run
       CSV.parse(csv.scrub,
                 headers: true,
                 header_converters: lambda { |h| h.try(:parameterize).try(:underscore) })
-         .map{|x| x.to_hash.symbolize_keys }
-         .map{|x| x.merge(councillor_id: member[:id], councillor_name: member[:name]) }
-         .each{|x|
+        .map{|x| x.to_hash.symbolize_keys }
+        .map{|x| x.merge(councillor_id: member[:id], councillor_name: member[:name]) }
+        .each do |x|
           begin
-             VoteRecord.create!(x)
+            VoteRecord.create!(x)
           rescue Encoding::UndefinedConversionError
-             puts "Try re encoding it"
-             record = Hash[x.map {|k, v| [k.to_sym, v.force_encoding('utf-8').scrub('')] }]
-             VoteRecord.create!(record)
+            puts "Try re encoding it"
+            record = Hash[x.map {|k, v| [k.to_sym, v.force_encoding('utf-8').scrub('')] }]
+            VoteRecord.create!(record)
           end
-         }
+          print "|"
+        end 
     end
   end
 
